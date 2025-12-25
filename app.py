@@ -3,101 +3,100 @@ import google.generativeai as genai
 from PIL import Image
 import os
 
-# 1. API 설정 및 모델 로드
+# 1. 최신 모델 엔진 설정 (404 에러 방지용 공식 명칭)
 GOOGLE_API_KEY = os.getenv("GEMINI_API_KEY")
 if GOOGLE_API_KEY:
     genai.configure(api_key=GOOGLE_API_KEY)
-    # 모델명 앞에 'models/'를 붙이는 것이 최신 규격입니다.
+    # 가장 안정적이고 사양이 높은 최신 모델 지정
     model = genai.GenerativeModel('models/gemini-1.5-pro')
 
-class PnP_StudioEngine:
-    """3대 산출물(제품/기획/모델) 통합 엔진"""
-    
+class PnP_MasterArchitect:
+    """3대 산출물을 생성하는 상업 기획 엔진"""
     THEMES = {
-        "시네마틱 누아르(Cinematic Noir)": "도시의 차가운 야경, 비 내리는 질감, 안경 렌즈의 날카로운 빛 반사.",
-        "미니어처 디오라마(Miniature Diorama)": "거대한 제품과 대비되는 작은 피규어 배치, 틸트-시프트 기법.",
-        "신비로운 꽃의 여신(Ethereal Floral)": "몽환적 파스텔 톤, 제품을 감싸는 꽃잎, 부드러운 채광.",
-        "크리스마스 박스(Christmas Box)": "연말의 따뜻함, 레드/골드 포인트 조명, 선물 같은 구도.",
-        "사이버펑크 크롬(Cyberpunk Chrome)": "네온 블루와 핑크 조명, 금속성의 차가운 반사광.",
-        "K-팝 코트사이드(K-pop Courtside)": "에너지 넘치는 원색 대비, 경기장 서치라이트 효과.",
+        "시네마틱 누아르(Cinematic Noir)": "도시의 차가운 야경과 강한 명암 대비.",
+        "미니어처 디오라마(Miniature Diorama)": "사물을 거대하게, 주변 피규어는 작게 배치하는 초현실 연출.",
+        "신비로운 꽃의 여신(Ethereal Floral)": "몽환적인 파스텔 톤, 제품을 감싸는 꽃잎과 부드러운 채광.",
+        "크리스마스 박스(Christmas Box)": "따뜻하고 화려한 연말 선물 컨셉.",
+        "사이버펑크 크롬(Cyberpunk Chrome)": "미래지향적 금속 질감과 사이언/마젠타 네온 조명.",
+        "K-팝 코트사이드(K-pop Courtside)": "스포티 럭셔리, 선명한 원색 대비와 경기장 조명 효과.",
         "가을 파리 OOTD(Autumn Paris)": "빈티지 브라운 톤, 유럽 거리의 부드러운 일몰 광선."
     }
 
     @staticmethod
-    def get_system_instruction(theme_key, product_name):
-        desc = PnP_StudioEngine.THEMES.get(theme_key)
+    def get_system_prompt(product_name, theme_key):
         return f"""
-        당신은 상업 사진 작가이자 마케팅 전문가입니다. 업로드된 이미지를 분석하여 3가지 산출물을 작성하세요.
+        당신은 세계 최고의 '상업 사진 기획자'입니다. 
+        사용자가 올린 사진을 분석하여 다음 3가지 항목을 구분하여 작성하세요.
 
-        1. [Product-Only Prompt]: 제품과 배경만 나오는 화보용 프롬프트. (사람 제외)
-        2. [Marketing Copy]: 상세페이지에 들어갈 제품 특징과 감성적인 카피 문구.
-        3. [Model-Product Prompt]: 업로드된 모델(또는 본인)이 제품을 착용한 화보용 프롬프트.
+        [PART 1: PRODUCT ONLY]
+        {product_name}과 배경만 강조된 상업 화보용 영어 프롬프트. (모델 제외)
         
-        사양: Hasselblad 100MP, 85mm f/1.8, razor-sharp focus, 8k resolution 필수 포함.
+        [PART 2: MARKETING PLAN]
+        상세페이지용 제품 특징 분석 및 고객을 유혹하는 한글 마케팅 카피 문구.
+
+        [PART 3: MODEL PHOTO]
+        업로드된 인물 사진이 {product_name}을 자연스럽게 활용하는 화보용 영어 프롬프트.
+        
+        * 공통 사양: Hasselblad 100MP, 85mm f/1.8, razor-sharp focus, 8k resolution 필수 포함.
         """
 
-# --- UI/UX 개편 ---
+# --- UI/UX 레이아웃 (정렬 및 정돈) ---
 st.set_page_config(page_title="Pick & Shot Master Pro", layout="wide")
 
-# 사이드바: 모든 설정과 업로드를 좌측으로 배치
+# 사이드바: 입력 및 설정 영역 (상단 정렬 방해 방지)
 with st.sidebar:
     st.title("⚙️ 픽앤픽 설정")
     st.markdown("---")
     prod_file = st.file_uploader("1. 상품 이미지 (필수)", type=['png', 'jpg', 'jpeg'])
     face_file = st.file_uploader("2. 모델/본인 사진 (선택)", type=['png', 'jpg', 'jpeg'])
-    product_name = st.text_input("제품명", "프리미엄 제품")
-    theme_choice = st.selectbox("기획안 테마", list(PnP_StudioEngine.THEMES.keys()))
+    product_name = st.text_input("제품명 입력", "프리미엄 제품")
+    theme_choice = st.selectbox("기획 테마 선택", list(PnP_MasterArchitect.THEMES.keys()))
     
-    generate_btn = st.button("🔥 마스터피스 생성 시작", use_container_width=True)
+    generate_btn = st.button("🔥 마스터피스 기획 시작", use_container_width=True)
     
     st.markdown("---")
-    st.header("📖 한글설명(Manual)")
-    st.info("재미나이가 상품의 질감을 읽어 기획안과 프롬프트를 동시에 작성합니다.")
+    st.caption("현재 구동 엔진: Gemini 1.5 Pro (최상위 사양)")
 
 # 메인 화면: 결과 중심 정렬
 st.title("📸 픽앤픽(Pick & Shot): 전문 기획 센터")
+st.write("모델은 기획을 하고, 당신은 프롬프트를 가져가기만 하면 됩니다.")
 
 if generate_btn:
     if not GOOGLE_API_KEY:
-        st.error("API Key가 설정되지 않았습니다.")
+        st.error("API Key가 등록되지 않았습니다.")
     elif prod_file:
         p_img = Image.open(prod_file)
-        instruction = PnP_StudioEngine.get_system_instruction(theme_choice, product_name)
+        instruction = PnP_MasterArchitect.get_system_prompt(product_name, theme_choice)
         inputs = [instruction, p_img]
         if face_file:
             inputs.append(Image.open(face_file))
             
-        with st.spinner("재미나이가 기획안을 빌드 중입니다..."):
+        with st.spinner("재미나이 프로 모델이 정밀 기획 중입니다..."):
             try:
                 response = model.generate_content(inputs)
-                
-                # 탭 구조를 사용하여 결과물을 깔끔하게 분리
-                tab1, tab2, tab3 = st.tabs(["🖼 제품 단독 화보", "📝 상세페이지 기획", "👤 모델 기반 화보"])
-                
                 content = response.text
-                # 결과 텍스트를 파싱하여 각 탭에 배치 (실제로는 재미나이에게 구분을 요청)
+                
+                # 결과물을 탭으로 분리하여 깔끔하게 정렬
+                tab1, tab2, tab3 = st.tabs(["🖼 제품 단독 화보", "📝 상세페이지 기획안", "👤 모델 기반 화보"])
+                
                 with tab1:
-                    st.subheader("제품 + 배경 중심 프롬프트")
-                    st.write("모델 없이 제품의 질감과 배경의 조화에 집중합니다.")
-                    st.code(content.split("2.")[0].replace("1.", ""), language='text')
+                    st.subheader("제품 및 배경 중심 프롬프트")
+                    st.code(content.split("[PART 2]")[0].replace("[PART 1]", "").strip(), language='text')
                 
                 with tab2:
-                    st.subheader("상세페이지 마케팅 문구")
-                    st.write("고객을 유혹하는 감성 카피와 기획 포인트입니다.")
-                    if "2." in content:
-                        st.markdown(content.split("2.")[1].split("3.")[0])
+                    st.subheader("상세페이지 마케팅 및 기획안")
+                    if "[PART 2]" in content:
+                        st.markdown(content.split("[PART 2]")[1].split("[PART 3]")[0].strip())
                 
                 with tab3:
-                    st.subheader("인물 일관성 기반 프롬프트")
-                    st.write("업로드된 모델 사진의 특징을 유지하며 제품을 노출합니다.")
-                    if "3." in content:
-                        st.code(content.split("3.")[1], language='text')
+                    st.subheader("인물 일관성 유지 프롬프트")
+                    if "[PART 3]" in content:
+                        st.code(content.split("[PART 3]")[1].strip(), language='text')
                 
-                st.success("✅ 모든 산출물이 정렬되었습니다.")
-                
+                st.success("✅ 기획안 정렬이 완료되었습니다. 각 탭을 확인하세요.")
             except Exception as e:
-                st.error(f"오류 발생: {str(e)}")
+                st.error(f"오류가 발생했습니다: {str(e)}")
     else:
-        st.error("상품 사진을 업로드해주세요.")
+        st.error("상품 사진을 업로드해 주세요.")
 else:
-    st.info("좌측 사이드바에서 설정을 마친 후 생성 버튼을 눌러주세요.")
+    st.info("좌측 사이드바에서 이미지를 올리고 테마를 선택한 후 버튼을 눌러주세요.")
