@@ -1,11 +1,11 @@
 import streamlit as st
-from google import genai
+import google.generativeai as genai
 from PIL import Image
 
-# --- 1. 보안 설정 (최신 google-genai 방식) ---
+# --- 1. 보안 설정 (표준 google-generativeai 방식) ---
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
-    client = genai.Client(api_key=api_key)
+    genai.configure(api_key=api_key)
 except Exception:
     st.error("⚠️ 설정에서 API 키를 입력해주세요! (Settings > Secrets)")
 
@@ -22,12 +22,17 @@ if uploaded_file:
     if st.button("🚀 숏폼 촬영 지시서 생성"):
         with st.spinner("AI 감독님이 전략을 짜는 중..."):
             try:
-                # 이 방식은 404 에러 없이 gemini-1.5-flash를 뚫어버립니다.
-                response = client.models.generate_content(
-                    model="gemini-1.5-flash",
-                    contents=["너는 숏폼 전문 감독이야. 이 사진의 상품을 분석해서 15초 촬영 구도와 자막을 짜줘.", image]
-                )
-                st.write(response.text)
+                # 404 에러를 방지하는 표준 모델 호출 방식
+                model = genai.GenerativeModel('gemini-1.5-flash')
+                
+                # 텍스트와 이미지를 리스트로 전달
+                response = model.generate_content([
+                    "너는 숏폼 전문 감독이야. 이 사진의 상품을 분석해서 15초 촬영 구도와 자막을 짜줘.", 
+                    image
+                ])
+                
+                st.subheader("🎬 AI 촬영 지시서")
+                st.markdown(response.text)
                 st.balloons()
             except Exception as e:
-                st.error(f"분석 중 오류 발생: {e}")
+                st.error(f"분석 중 오류 발생: {str(e)}")
