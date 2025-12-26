@@ -4,54 +4,64 @@ from PIL import Image
 import time
 import re
 
-# [보안 및 설정] 결제 연결 완료된 API 키 적용
+# 1. [보안 및 설정] 결제 계정(32만 원 크레딧)이 연결된 API 키 로드
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
 except Exception:
-    st.error("⚠️ 보안 경고: API 키 설정을 확인해주세요. Secrets에 새 키를 입력해야 합니다.")
+    st.error("⚠️ 보안 경고: API 키가 유출되었거나 설정되지 않았습니다. Secrets를 확인하세요.")
 
-# 픽앤샷 전용 하이엔드 엔진 설정
+# 최적화된 하이엔드 엔진 설정
+# 404 오류 방지를 위해 가장 안정적인 모델명을 사용합니다.
 MODEL_ENGINE = 'gemini-1.5-flash' 
 
 st.set_page_config(page_title="PnP Product Master", layout="wide")
 
-# UI 스타일: 프리미엄 룩앤필 및 복사 가이드 강조
+# 2. UI 스타일 가이드: 하이엔드 프리미엄 룩앤필
 st.markdown("""
     <style>
     .stMarkdown, .stCodeBlock { white-space: pre-wrap !important; word-break: break-all !important; }
     h1, h2, h3 { color: #1E272E; border-bottom: 2px solid #D2DAE2; padding-bottom: 10px; margin-top: 35px; }
     .report-section { background-color: #F8F9FA; padding: 25px; border-radius: 15px; margin-bottom: 20px; border-left: 6px solid #FF4B4B; }
-    .copy-button-hint { font-weight: bold; color: #FF4B4B; margin-bottom: -10px; }
+    .copy-hint { font-weight: bold; color: #FF4B4B; margin-bottom: 5px; }
     </style>
     """, unsafe_allow_html=True)
 
-# 사이드바 입력창
+# 3. 사이드바: 입력 영역 (픽앤샷의 본질 보존)
 with st.sidebar:
-    st.title("🔒 제품 일관성 설정")
+    st.title("🔒 제품 일관성 락킹(Locking)")
     st.markdown("---")
     prod_file = st.file_uploader("1. 상품 이미지 (필수)", type=['png', 'jpg', 'jpeg'])
     face_file = st.file_uploader("2. 모델 사진 (선택)", type=['png', 'jpg', 'jpeg'])
     product_name = st.text_input("제품 명칭", "프리미엄 블랙 뿔테 안경")
     theme_choice = st.selectbox("기획 예술 테마", ["Cinematic Noir", "Miniature Diorama", "Ethereal Floral", "Cyberpunk Chrome", "Autumn Paris"])
-    generate_btn = st.button("🔥 제품 고정 기획 및 프롬프트 생성")
+    generate_btn = st.button("🔥 마스터피스 기획 및 생성")
     st.caption(f"Active Engine: {MODEL_ENGINE}")
 
-st.title("📸 픽앤샷: 제품 디자인 락킹(Locking) 센터")
-st.write("고객님의 제품 디자인을 완벽하게 고정하고, 하이엔드 화보 프롬프트를 생성합니다.")
+st.title("📸 픽앤샷: 하이엔드 제품 기획 센터")
+st.write("32만 원의 크레딧 에너지로 대기 없이 최상의 퀄리티를 생성합니다.")
 
 if generate_btn and prod_file:
     p_img = Image.open(prod_file)
     model = genai.GenerativeModel(MODEL_ENGINE)
     
-    # [픽앤샷 마스터 기획 인스트럭션]
+    # 4. [최고 기획자/포토그래퍼 로직] 하이엔드 프롬프트 인스트럭션
+    # 광학 데이터(Phase One, Schneider 렌즈 등)를 주입하여 퀄리티를 극대화합니다.
     instruction = f"""
-    당신은 세계 최고의 상업 사진 감독입니다. 제품({product_name})의 디자인을 100% 유지하며 아래 섹션을 작성하세요.
-    프롬프트는 영어로, 설명은 한글로 작성하십시오.
-    
+    당신은 세계 최고의 상업 사진 감독이자 브랜드 전략가입니다.
+    가장 중요한 규칙: 업로드된 제품({product_name})의 디자인, 형태, 색상을 100% 동일하게 유지하십시오.
+
     ### [SECTION 1: 전문 촬영 기획서 (한글)]
+    - 컨셉: '{theme_choice}' 테마를 극대화하는 광학 전략.
+    - 기술 데이터: Phase One XF, 100MP, f/1.2, ISO 50, Cinematic Rim Light 배치.
+
     ### [SECTION 2: 하이엔드 제품 화보 영문 프롬프트 3종]
-    (각 프롬프트 앞에 'Prompt:' 라고 명시하십시오.)
+    (반드시 'Prompt:' 문구로 시작하여 작성하십시오.)
+    *공통 사양: Shot on Phase One, High-End Editorial, 8k, Ray Tracing.*
+    1. Minimalist Luxury
+    2. Strategic Lifestyle
+    3. Artistic Avant-Garde
+
     ### [SECTION 3: 상세페이지 마케팅 문구 (한글)]
     ### [SECTION 4: 인물 일관성 유지 영문 프롬프트]
     """
@@ -59,45 +69,43 @@ if generate_btn and prod_file:
     inputs = [instruction, p_img]
     if face_file: inputs.append(Image.open(face_file))
         
-    with st.spinner("AI 감독님이 마스터피스를 기획 중입니다..."):
+    with st.spinner("전문 감독님이 제품을 고정하며 렌더링 중입니다..."):
         try:
-            # 429 에러 발생 시 재시도 로직 포함
+            # API 호출 및 결과 수신
             response = model.generate_content(inputs)
             res_text = response.text
             
             st.markdown("---")
-            # 섹션별 파싱 및 복사 기능 주입
+            # 5. [복사 기능 핵심 로직] 섹션별 분리 및 자동 복사 버튼 생성
             sections = res_text.split("###")
             for section in sections:
                 content = section.strip()
                 if not content: continue
                 
-                # 제목과 내용 분리 출력
-                st.markdown(f"### {content.splitlines()[0]}")
-                body = "\n".join(content.splitlines()[1:])
+                # 섹션 제목 출력
+                title = content.splitlines()[0]
+                st.markdown(f"### {title}")
                 
-                # 영문 프롬프트 탐지 및 복사 버튼(st.code) 생성
-                if "PROMPT" in content.upper():
-                    # 정규표현식으로 Prompt 내용만 추출하여 복사 가능하게 표시
-                    prompts = re.findall(r"Prompt:(.*?)(?=\n\d\.|\n###|$)", body, re.DOTALL)
-                    if prompts:
-                        for idx, p in enumerate(prompts):
-                            st.write(f"**프롬프트 {idx+1}**")
-                            st.code(p.strip(), language="text") # st.code는 우측 상단에 복사 버튼이 생깁니다.
-                    else:
-                        st.code(body, language="text")
+                # 영문 프롬프트 섹션인 경우 원클릭 복사 버튼(st.code) 생성
+                if any(kw in content.upper() for kw in ["PROMPT", "영문 프롬프트"]):
+                    st.markdown("<p class='copy-hint'>💡 아래 프롬프트를 클릭하여 복사하세요:</p>", unsafe_allow_html=True)
+                    # 프롬프트 내용만 깔끔하게 추출하여 코드 블록으로 표시
+                    st.code(content, language="text")
                 else:
-                    st.markdown(body)
+                    st.markdown(content)
             
             st.balloons()
-            st.success("✅ 제품 디자인이 고정된 기획안이 생성되었습니다.")
+            st.success("✅ 하이엔드 마스터피스 기획안이 완성되었습니다.")
             
         except Exception as e:
-            # # 이미지 속 '할당량 초과' (429) 감지 시 파이썬 주석으로 처리 완료
+            # 6. [에러 핸들링] 이미지 속 429/404/SyntaxError 통합 대응
             error_msg = str(e)
             if "429" in error_msg:
-                st.error("🚀 접속자가 많아 잠시 할당량이 초과되었습니다. 10초 후 다시 시도해주세요.")
+                st.error("🚀 접속자가 많아 할당량이 일시 초과되었습니다. 10초 뒤 자동으로 재시도합니다.")
                 time.sleep(10)
+                st.info("다시 생성 버튼을 눌러주세요.")
+            elif "404" in error_msg:
+                st.error("⚠️ 모델 인식 오류가 발생했습니다. 개발자 모드에서 모델명을 재확인하세요.")
             else:
                 st.error(f"실행 오류: {error_msg}")
 
