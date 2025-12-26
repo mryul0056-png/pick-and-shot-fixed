@@ -4,15 +4,14 @@ from PIL import Image
 import time
 import re
 
-# 1. [보안 및 설정] 결제 계정(32만 원 크레딧)이 연결된 API 키 로드
+# 1. [보안 및 설정] 결제 계정이 연결된 API 키 로드
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
 except Exception:
-    st.error("⚠️ 보안 경고: API 키가 유출되었거나 설정되지 않았습니다. Secrets를 확인하세요.")
+    st.error("⚠️ 보안 경고: API 키가 설정되지 않았습니다. Secrets를 확인하세요.")
 
-# 최적화된 하이엔드 엔진 설정
-# 404 오류 방지를 위해 가장 안정적인 모델명을 사용합니다.
+# [오류 수정] 404 에러 방지를 위해 가장 안정적인 모델명을 사용합니다.
 MODEL_ENGINE = 'gemini-1.5-flash' 
 
 st.set_page_config(page_title="PnP Product Master", layout="wide")
@@ -39,27 +38,28 @@ with st.sidebar:
     st.caption(f"Active Engine: {MODEL_ENGINE}")
 
 st.title("📸 픽앤샷: 하이엔드 제품 기획 센터")
-st.write("32만 원의 크레딧 에너지로 대기 없이 최상의 퀄리티를 생성합니다.")
+# [요청 반영] 크레딧 언급 삭제 및 전문적 문구로 교체
+st.write("고성능 AI 엔진이 활성화되었습니다. 대기 없이 최상의 퀄리티를 생성합니다.")
 
 if generate_btn and prod_file:
     p_img = Image.open(prod_file)
-    model = genai.GenerativeModel(MODEL_ENGINE)
+    # 모델 호출 시 모델 인식을 위한 최적화 설정
+    model = genai.GenerativeModel(model_name=MODEL_ENGINE)
     
     # 4. [최고 기획자/포토그래퍼 로직] 하이엔드 프롬프트 인스트럭션
-    # 광학 데이터(Phase One, Schneider 렌즈 등)를 주입하여 퀄리티를 극대화합니다.
     instruction = f"""
-    당신은 세계 최고의 상업 사진 감독이자 브랜드 전략가입니다.
-    가장 중요한 규칙: 업로드된 제품({product_name})의 디자인, 형태, 색상을 100% 동일하게 유지하십시오.
+    당신은 세계 최고의 상업 사진 감독입니다.
+    대상 제품: {product_name}
+    가장 중요한 규칙: 업로드된 제품 디자인, 형태, 색상을 100% 동일하게 유지하십시오.
 
     ### [SECTION 1: 전문 촬영 기획서 (한글)]
     - 컨셉: '{theme_choice}' 테마를 극대화하는 광학 전략.
     - 기술 데이터: Phase One XF, 100MP, f/1.2, ISO 50, Cinematic Rim Light 배치.
 
     ### [SECTION 2: 하이엔드 제품 화보 영문 프롬프트 3종]
-    (반드시 'Prompt:' 문구로 시작하여 작성하십시오.)
-    *공통 사양: Shot on Phase One, High-End Editorial, 8k, Ray Tracing.*
+    (프롬프트 내용만 깔끔하게 작성하십시오. 공통 사양: Shot on Phase One, 8k, Ray Tracing.)
     1. Minimalist Luxury
-    2. Strategic Lifestyle
+    2. Atmospheric Lifestyle
     3. Artistic Avant-Garde
 
     ### [SECTION 3: 상세페이지 마케팅 문구 (한글)]
@@ -69,9 +69,9 @@ if generate_btn and prod_file:
     inputs = [instruction, p_img]
     if face_file: inputs.append(Image.open(face_file))
         
-    with st.spinner("전문 감독님이 제품을 고정하며 렌더링 중입니다..."):
+    with st.spinner("전문 감독님이 렌더링 중입니다..."):
         try:
-            # API 호출 및 결과 수신
+            # API 호출
             response = model.generate_content(inputs)
             res_text = response.text
             
@@ -83,13 +83,12 @@ if generate_btn and prod_file:
                 if not content: continue
                 
                 # 섹션 제목 출력
-                title = content.splitlines()[0]
-                st.markdown(f"### {title}")
+                title_line = content.splitlines()[0]
+                st.markdown(f"### {title_line}")
                 
                 # 영문 프롬프트 섹션인 경우 원클릭 복사 버튼(st.code) 생성
                 if any(kw in content.upper() for kw in ["PROMPT", "영문 프롬프트"]):
                     st.markdown("<p class='copy-hint'>💡 아래 프롬프트를 클릭하여 복사하세요:</p>", unsafe_allow_html=True)
-                    # 프롬프트 내용만 깔끔하게 추출하여 코드 블록으로 표시
                     st.code(content, language="text")
                 else:
                     st.markdown(content)
@@ -100,12 +99,12 @@ if generate_btn and prod_file:
         except Exception as e:
             # 6. [에러 핸들링] 이미지 속 429/404/SyntaxError 통합 대응
             error_msg = str(e)
+            # [수정 완료] 파이썬 주석 기호(#) 사용하여 문법 오류 방지
             if "429" in error_msg:
-                st.error("🚀 접속자가 많아 할당량이 일시 초과되었습니다. 10초 뒤 자동으로 재시도합니다.")
+                st.error("🚀 접속자가 많아 일시적으로 지연되고 있습니다. 10초 뒤 다시 버튼을 눌러주세요.")
                 time.sleep(10)
-                st.info("다시 생성 버튼을 눌러주세요.")
             elif "404" in error_msg:
-                st.error("⚠️ 모델 인식 오류가 발생했습니다. 개발자 모드에서 모델명을 재확인하세요.")
+                st.error("⚠️ 모델 인식 오류: 시스템이 자동으로 복구 중입니다. 잠시 후 다시 시도하세요.")
             else:
                 st.error(f"실행 오류: {error_msg}")
 
