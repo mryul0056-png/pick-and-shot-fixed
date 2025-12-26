@@ -1,58 +1,32 @@
-import streamlit as st
 import google.generativeai as genai
-from PIL import Image
+import os
 
-# [설정] 페이지 설정
-st.set_page_config(page_title="PnP Product Master", layout="wide")
+# 1. API 키 설정
+# 실제 환경에서는 환경 변수 사용을 권장하지만, 테스트를 위해 직접 입력 방식 예시를 둡니다.
+# 'YOUR_API_KEY' 부분에 개발자님의 정확한 API 키를 넣어주세요.
+MY_API_KEY = "YOUR_API_KEY_HERE"
 
-# [보안] API 키 설정
 try:
-    api_key = st.secrets["GEMINI_API_KEY"]
-    genai.configure(api_key=api_key)
-except Exception:
-    st.error("⚠️ API 키 오류: Secrets에 GEMINI_API_KEY가 있는지 확인하세요.")
-    st.stop()
+    # 라이브러리 설정
+    genai.configure(api_key=MY_API_KEY)
 
-# [핵심 수정] 구버전 라이브러리 호환을 위해 'gemini-pro'로 강제 고정
-# gemini-1.5-flash는 라이브러리 업데이트 전까지 사용 불가합니다.
-MODEL_ENGINE = 'gemini-pro' 
+    # 2. 모델 설정 (핵심 수정 부분)
+    # 기존 'gemini-pro' 대신 구체적인 최신 버전명을 사용합니다.
+    # gemini-1.5-flash: 속도가 빠르고 최신 정보 처리에 강함 (추천)
+    # gemini-1.0-pro: 기존 pro 버전의 안정화 버전
+    model = genai.GenerativeModel('gemini-1.5-flash')
 
-# UI 스타일
-st.markdown("""
-    <style>
-    .stMarkdown, .stCodeBlock { white-space: pre-wrap !important; word-break: break-all !important; }
-    h1, h2, h3 { color: #1E272E; border-bottom: 2px solid #D2DAE2; padding-bottom: 10px; margin-top: 35px; }
-    </style>
-    """, unsafe_allow_html=True)
+    print(">>> 모델 초기화 완료. 테스트 요청을 보냅니다...")
 
-# 사이드바
-with st.sidebar:
-    st.title("🔒 제품 일관성 락킹")
-    prod_file = st.file_uploader("상품 이미지 (필수)", type=['png', 'jpg', 'jpeg'])
-    theme_choice = st.selectbox("테마 선택", ["Cinematic Noir", "Minimal Luxury", "Cyberpunk"])
-    generate_btn = st.button("🔥 생성 시작")
-    st.caption(f"Engine: {MODEL_ENGINE} (Compatibility Mode)")
+    # 3. 콘텐츠 생성 요청 (테스트)
+    response = model.generate_content("안녕, 넌 누구니? 짧게 소개해줘.")
 
-st.title("📸 픽앤샷: 하이엔드 기획 (호환 모드)")
+    # 4. 결과 출력
+    print("\n[응답 결과]:")
+    print(response.text)
 
-if generate_btn and prod_file:
-    p_img = Image.open(prod_file)
-    model = genai.GenerativeModel(MODEL_ENGINE)
-    
-    instruction = f"""
-    당신은 전문 크리에이티브 디렉터입니다.
-    제품: 안경
-    테마: {theme_choice}
-    
-    1. 이 제품을 위한 매력적인 마케팅 카피 3가지를 작성하세요.
-    2. 미드저니용 프롬프트를 영어로 작성하세요.
-    """
-    
-    with st.spinner("구형 엔진으로 렌더링 중... (화질/속도가 낮을 수 있음)"):
-        try:
-            response = model.generate_content([instruction, p_img])
-            st.markdown(response.text)
-            st.success("✅ 생성 완료")
-        except Exception as e:
-            st.error(f"오류 발생: {e}")
-            st.info("💡 이 오류까지 뜬다면 API 키가 틀렸거나 구글 클라우드 문제입니다.")
+except Exception as e:
+    print(f"\n[오류 발생]: {e}")
+    print("-" * 30)
+    print("팁: 404 에러가 사라졌다면 모델명 변경이 성공한 것입니다.")
+    print("팁: 403 에러가 뜬다면 API 키 권한이나 할당량 문제입니다.")
