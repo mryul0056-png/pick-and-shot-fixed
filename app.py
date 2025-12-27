@@ -4,7 +4,7 @@ import os
 # 1. API 키 설정
 # 실제 환경에서는 환경 변수 사용을 권장하지만, 테스트를 위해 직접 입력 방식 예시를 둡니다.
 # 'YOUR_API_KEY' 부분에 개발자님의 정확한 API 키를 넣어주세요.
-MY_API_KEY = "YOUR_API_KEY_HERE"
+MY_API_KEY = "AIzaSyDse-pXOMxcMcBTNvcPpIhK48vdP3_htXA"
 
 try:
     # 라이브러리 설정
