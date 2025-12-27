@@ -2,130 +2,131 @@ import streamlit as st
 import google.generativeai as genai
 from PIL import Image
 import os
+import time
 
-# --- [1] 페이지 기본 설정 (가장 먼저 실행) ---
-st.set_page_config(
-    page_title="Pick & Shot: High-End Studio",
-    page_icon="📸",
-    layout="wide"
-)
+# --- [1] 페이지 및 스타일 설정 ---
+st.set_page_config(page_title="Pick & Shot: Model x Product", page_icon="📸", layout="wide")
 
-# --- [2] 스타일링 (CSS) ---
 st.markdown("""
 <style>
     .main { background-color: #0e1117; color: #ffffff; }
-    h1 { font-family: 'Helvetica Neue', sans-serif; font-weight: 700; color: #FAFAFA; }
-    .stButton>button {
-        width: 100%;
-        background-color: #FF4B4B;
-        color: white;
-        border-radius: 8px;
-        height: 50px;
-        font-weight: bold;
+    div[data-testid="stFileUploader"] {
+        border: 1px dashed #FF4B4B;
+        padding: 10px;
+        border-radius: 10px;
     }
     .report-box {
         background-color: #262730;
-        padding: 20px;
+        padding: 25px;
         border-radius: 10px;
         border-left: 5px solid #FF4B4B;
-        margin-bottom: 20px;
+        margin-top: 20px;
+        line-height: 1.6;
     }
+    h3 { color: #FAFAFA !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- [3] API 키 및 모델 설정 (안전장치 포함) ---
+# --- [2] API 키 설정 (안전장치) ---
 def configure_genai():
     try:
-        # Streamlit Secrets에서 키를 가져오거나 환경변수 확인
         api_key = st.secrets.get("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY")
-        
         if not api_key:
-            st.error("🚨 치명적 오류: GOOGLE_API_KEY가 설정되지 않았습니다.")
-            st.info("Streamlit 설정(Secrets) 또는 .env 파일에 API 키를 입력해주세요.")
-            st.stop() # 앱 실행 중단
-            
+            st.error("🚨 API Key가 없습니다. Streamlit Secrets에 'GOOGLE_API_KEY'를 설정해주세요.")
+            st.stop()
         genai.configure(api_key=api_key)
         return True
     except Exception as e:
-        st.error(f"⚠️ 설정 오류 발생: {str(e)}")
+        st.error(f"⚠️ 설정 오류: {str(e)}")
         return False
 
-# --- [4] 핵심 로직: 하이엔드 프롬프트 생성기 ---
-def analyze_image(image, vibe):
-    # 모델 선택 (Vision 기능이 탁월한 1.5 Flash 사용)
+# --- [3] 핵심 로직: 듀얼 비전 분석 (상품 + 모델) ---
+def analyze_dual_images(product_img, model_img, vibe):
+    # 최신 모델 사용 (Flash가 안되면 Pro로 자동 전환 고려, 여기선 Flash 강제)
     model = genai.GenerativeModel('gemini-1.5-flash')
     
-    # 🌟 [전문가 페르소나 주입] 
-    # 당신은 보스턴 컨설팅 그룹 출신의 상품 기획자이자 보그(Vogue) 수석 포토그래퍼입니다.
+    # 🌟 [일관성 유지 프롬프트] 
+    # 상품의 변형을 막고, 모델의 특징을 유지하며 합성하는 전문 지침
     prompt = f"""
-    당신은 세계 최고의 상업 사진 작가이자 상품 기획자입니다.
-    업로드된 제품 이미지를 분석하여 다음 3가지를 한국어로 작성해주세요.
+    당신은 세계 최고의 광고 감독이자 AI 프롬프트 엔지니어입니다.
+    두 장의 이미지가 입력되었습니다.
     
-    분위기(Vibe) 설정: {vibe}
+    - [이미지 1]: 판매할 '상품(Product)' (절대 변형되어서는 안 됨)
+    - [이미지 2]: 광고 모델(Model) 또는 레퍼런스 인물 (이 사람의 외형/특징 유지)
     
-    1. [상품 본질 분석]: 이 상품의 핵심 매력 포인트와 타겟 고객층 (전문적 용어 사용)
-    2. [럭셔리 스튜디오 세팅]: 조명(Lighting), 앵글(Angle), 배경(Background), 소품(Props)에 대한 구체적인 지시
-    3. [이미지 생성 프롬프트]: Midjourney나 Stable Diffusion에 넣었을 때 최고급 결과물이 나올 수 있는 영어 프롬프트 (Hyper-realistic, 8k, Detailed texture 등 포함)
+    요청사항: 
+    이 두 이미지를 합성하여 '{vibe}' 분위기의 하이엔드 광고 사진을 만들기 위한
+    'Midjourney' 또는 'Stable Diffusion' 전용 영어 프롬프트를 작성해주세요.
     
-    출력 형식은 깔끔한 마크다운으로 해주세요.
+    필수 포함 항목:
+    1. [Subject Consistency]: 모델의 얼굴, 헤어스타일, 체형을 상세히 묘사 (이미지 2 기준).
+    2. [Product Fidelity]: 상품의 색상, 재질, 로고 위치를 정확히 묘사 (이미지 1 기준). 모델이 상품을 자연스럽게 착용하거나 들고 있는 포즈 묘사.
+    3. [Environment & Lighting]: '{vibe}'에 맞는 배경, 조명, 카메라 앵글, 렌즈 스펙 (예: 85mm, f/1.8).
+    4. [Negative Prompt]: 왜곡, 낮은 해상도, 손가락 기형 등을 방지하는 키워드.
+    
+    출력은 한글 설명과 영어 프롬프트 블록으로 나누어 깔끔하게 작성해주세요.
     """
     
-    with st.spinner('📸 AI 디렉터가 상품을 분석하고 촬영 컨셉을 잡는 중...'):
+    with st.spinner('📸 상품과 모델을 매칭하여 최적의 컷을 설계 중입니다...'):
         try:
-            response = model.generate_content([prompt, image])
+            # 두 장의 이미지와 텍스트를 리스트로 전달
+            response = model.generate_content([prompt, product_img, model_img])
             return response.text
         except Exception as e:
             return f"Error: 분석 중 문제가 발생했습니다. ({str(e)})"
 
-# --- [5] UI 레이아웃 (사용자 경험 최적화) ---
+# --- [4] 메인 UI 레이아웃 ---
 def main():
-    st.title("Pick & Shot 📸")
-    st.caption("High-End Product Photography AI Director")
+    st.title("Pick & Shot : Model Edition 📸")
+    st.caption("Custom Model & Product Integration AI Director")
     
-    # 사이드바: 설정 및 이미지 업로드
+    # 사이드바: 옵션 설정
     with st.sidebar:
-        st.header("Step 1. Studio Setup")
-        uploaded_file = st.file_uploader("상품 이미지를 올려주세요", type=["jpg", "png", "jpeg", "webp"])
-        
-        st.header("Step 2. Concept")
+        st.header("Step 3. Concept")
         vibe_option = st.selectbox(
-            "원하는 분위기 (Vibe) 선택",
-            ["Luxury & Minimal (고급/미니멀)", "Neon & Cyberpunk (힙합/네온)", "Nature & Organic (자연주의)", "Vintage & Warm (빈티지/따뜻함)"]
+            "촬영 분위기 (Vibe)",
+            ["Luxury Studio (명품/스튜디오)", "Outdoor Natural (야외/자연광)", 
+             "Cyberpunk Neon (미래지향/네온)", "Cinematic Film (영화 같은 연출)"]
         )
-        
         st.markdown("---")
-        st.info("💡 팁: 해상도가 높은 원본 이미지를 사용할수록 분석 결과가 정확합니다.")
+        st.info("💡 팁: 모델 사진은 얼굴이 선명한 것이 좋고, 상품 사진은 누끼(배경제거)가 없어도 괜찮습니다.")
 
-    # 메인 화면: 결과 출력
-    if uploaded_file is not None:
-        # 이미지 로드 및 표시
-        image = Image.open(uploaded_file)
-        
-        col1, col2 = st.columns([1, 1])
-        
-        with col1:
-            st.image(image, caption='Original Product', use_column_width=True)
-            
-        with col2:
-            st.markdown("### 🎯 Ready to Analyze")
-            if st.button("전문가 분석 및 기획안 생성 (Start)"):
-                if configure_genai(): # API 설정 검증
-                    result = analyze_image(image, vibe_option)
-                    st.session_state['result'] = result # 결과 저장 (새로고침 방지)
+    # 메인: 2단 업로드 (상품 vs 모델)
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Step 1. 상품 (Product)")
+        product_file = st.file_uploader("상품 사진 업로드", type=["jpg", "png", "webp"], key="prod")
+        if product_file:
+            p_img = Image.open(product_file)
+            st.image(p_img, caption="Main Product", use_column_width=True)
 
-        # 결과가 있으면 화면 하단에 표시 (상태 유지)
-        if 'result' in st.session_state:
-            st.markdown("---")
-            st.subheader("📋 Professional Report")
-            st.markdown(f'<div class="report-box">{st.session_state["result"]}</div>', unsafe_allow_html=True)
-            
-    else:
-        # 대기 화면
-        st.markdown("""
-        ### 👋 환영합니다, Creator님.
-        **Pick & Shot**은 당신의 제품을 명품으로 만들어줄 AI 크리에이티브 디렉터입니다.
-        왼쪽 사이드바에서 이미지를 업로드하여 시작하세요.
-        """)
+    with col2:
+        st.subheader("Step 2. 모델 (Model)")
+        model_file = st.file_uploader("모델/레퍼런스 사진 업로드", type=["jpg", "png", "webp"], key="mod")
+        if model_file:
+            m_img = Image.open(model_file)
+            st.image(m_img, caption="Target Model", use_column_width=True)
+
+    # 실행 버튼 (두 이미지가 모두 있을 때만 활성화)
+    st.markdown("---")
+    if product_file and model_file:
+        if st.button("✨ 모델 착용컷 기획안 & 프롬프트 생성 (Start)"):
+            if configure_genai():
+                # 이미지 객체 다시 로드 (안전성 확보)
+                p_img = Image.open(product_file)
+                m_img = Image.open(model_file)
+                
+                result = analyze_dual_images(p_img, m_img, vibe_option)
+                st.session_state['dual_result'] = result
+    
+    elif not product_file and not model_file:
+        st.info("👆 위 두 영역에 '상품'과 '모델' 사진을 각각 올려주세요.")
+
+    # 결과 출력창
+    if 'dual_result' in st.session_state:
+        st.subheader("📋 Perfect Match Prompt Report")
+        st.markdown(f'<div class="report-box">{st.session_state["dual_result"]}</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
