@@ -2,26 +2,20 @@ import streamlit as st
 import google.generativeai as genai
 from PIL import Image
 import os
-import time
 
-# --- [1] 페이지 및 스타일 설정 (High-End Mood) ---
+# --- [1] 페이지 및 스타일 설정 ---
 st.set_page_config(
-    page_title="Pick & Shot: Director's Cut",
+    page_title="Pick & Shot: Hybrid Director",
     page_icon="📸",
     layout="wide"
 )
 
 st.markdown("""
 <style>
-    /* 전체 배경 및 폰트 설정 */
     .main { background-color: #0e1117; color: #ffffff; }
+    section[data-testid="stSidebar"] { background-color: #1c1e24; }
     
-    /* 사이드바 스타일링 */
-    section[data-testid="stSidebar"] {
-        background-color: #1c1e24;
-    }
-    
-    /* 버튼 스타일링 (눈에 띄게) */
+    /* 버튼 스타일 */
     .stButton>button {
         width: 100%;
         background-color: #FF4B4B;
@@ -33,18 +27,16 @@ st.markdown("""
         margin-top: 20px;
         border: none;
     }
-    .stButton>button:hover {
-        background-color: #FF2B2B;
-        color: white;
-    }
+    .stButton>button:hover { background-color: #FF2B2B; color: white; }
 
-    /* 결과 박스 스타일링 */
+    /* 리포트 박스 */
     .report-box {
         background-color: #262730;
         padding: 25px;
         border-radius: 10px;
         border-left: 5px solid #FF4B4B;
         margin-bottom: 20px;
+        line-height: 1.6;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -62,69 +54,93 @@ def configure_genai():
         st.error(f"⚠️ 설정 오류: {str(e)}")
         return False
 
-# --- [3] 핵심 로직: Gemini Vision Analysis ---
-def analyze_dual_images(product_img, model_img, vibe):
+# --- [3] 핵심 로직: 하이브리드 분석 (상품 Only vs 상품+모델) ---
+def analyze_campaign(product_img, model_img, vibe):
     model = genai.GenerativeModel('gemini-1.5-flash')
     
-    # 전문가 프롬프트 (수정 금지: 일관성 유지 핵심 로직)
-    prompt = f"""
+    # 1. 기본 프롬프트 (공통)
+    base_prompt = f"""
     당신은 세계 최고의 하이엔드 광고 디렉터입니다.
-    다음 두 이미지를 분석하여 완벽한 광고 촬영 기획안을 작성해주세요.
+    입력된 이미지를 바탕으로 '{vibe}' 컨셉의 광고 촬영 기획안과 프롬프트를 작성하세요.
     
-    [입력 이미지]
-    1. Product Image: 판매할 상품 (디테일, 로고, 재질 유지 필수)
-    2. Model/Ref Image: 모델의 외형, 포즈, 분위기 (Subject Consistency 유지 필수)
+    [필수 조건]
+    1. Product Fidelity: 상품의 디자인, 로고, 재질은 절대 변형 없이 묘사할 것.
+    2. High-End Quality: 전문 조명(Softbox, Rim light)과 카메라 세팅(85mm f/1.8)을 명시할 것.
+    """
+
+    # 2. 상황별 프롬프트 분기 (Logic Branching)
+    if model_img:
+        # Case A: 모델 사진이 있는 경우 (합성 모드)
+        specific_prompt = """
+        [추가 지시사항 - 모델 합성]
+        - 두 번째 이미지(Model Image)의 인물 특징(얼굴, 헤어, 체형)을 그대로 유지하세요.
+        - 모델이 상품을 자연스럽게 착용하거나 들고 있는 포즈를 묘사하세요.
+        """
+        content = [base_prompt + specific_prompt, product_img, model_img]
+    else:
+        # Case B: 상품만 있는 경우 (가상 모델 추천 모드)
+        specific_prompt = f"""
+        [추가 지시사항 - 모델 가상 추천]
+        - 현재 모델 이미지가 없습니다. 상품과 '{vibe}' 분위기에 가장 잘 어울리는 최적의 모델(성별, 나이, 스타일)을 AI가 창의적으로 제안해서 묘사하세요.
+        - 예: '시크한 표정의 금발 숏컷 여성 모델' 또는 '미니멀한 배경의 정물 촬영' 등 상품에 최적화된 연출.
+        """
+        content = [base_prompt + specific_prompt, product_img]
+
+    # 3. 출력 형식 지정
+    format_prompt = """
     
-    [요청 사항]
-    분위기: '{vibe}'
+    결과는 다음 두 부분으로 명확히 구분해 출력하세요:
     
-    결과는 다음 두 부분으로 나누어 출력하세요:
+    PART 1. [크리에이티브 디렉팅 리포트] (한글)
+    - 컨셉 및 전략
+    - (모델이 없으면) 추천 모델 스타일링 제안
+    - 조명 및 촬영 세팅
     
-    PART 1. [크리에이티브 디렉팅 리포트] (한글 작성)
-    - 컨셉 설명
-    - 조명 및 앵글 세팅 가이드
-    - 모델 포즈 및 스타일링 지시
-    
-    PART 2. [Midjourney/Stable Diffusion Prompt] (영어 작성)
-    - 반드시 복사해서 바로 쓸 수 있는 프롬프트 텍스트만 작성.
-    - /imagine prompt: 로 시작하지 말고 순수 프롬프트 내용만 작성.
-    - 포함 키워드: hyper-realistic, 8k, highly detailed, professional photography, {vibe} style
+    PART 2. [Midjourney/Stable Diffusion Prompt] (영어)
+    - 바로 복사해서 쓸 수 있는 프롬프트 텍스트만 작성 (설명 제외).
+    - --ar 4:5 --v 6.0 등의 파라미터 포함.
     """
     
-    with st.spinner('🎬 Director is analyzing the scene...'):
+    # 최종 컨텐츠 조합 (문자열 리스트의 마지막에 포맷 지침 추가)
+    if isinstance(content[0], str):
+        content[0] += format_prompt
+        
+    with st.spinner('🎬 AI Director is designing the campaign...'):
         try:
-            response = model.generate_content([prompt, product_img, model_img])
+            response = model.generate_content(content)
             return response.text
         except Exception as e:
             return f"Error: {str(e)}"
 
-# --- [4] 메인 UI 레이아웃 (Layout Logic) ---
+# --- [4] 메인 UI ---
 def main():
-    # --- [A] 사이드바: 컨트롤 타워 (입력 & 실행) ---
+    # 사이드바
     with st.sidebar:
         st.title("Pick & Shot 📸")
-        st.caption("Professional AI Studio")
+        st.caption("All-in-One AI Studio")
         
         st.header("1. Upload Assets")
-        product_file = st.file_uploader("📦 상품 이미지 (Product)", type=["jpg", "png", "webp"])
-        model_file = st.file_uploader("bust_in_silhouette: 모델/참고 이미지 (Model)", type=["jpg", "png", "webp"])
+        # 상품은 필수
+        product_file = st.file_uploader("📦 상품 이미지 (필수)", type=["jpg", "png", "webp"])
+        
+        # 모델은 선택사항으로 변경
+        st.markdown("---")
+        model_file = st.file_uploader("bust_in_silhouette: 모델 이미지 (선택사항)", type=["jpg", "png", "webp"], help="모델 사진을 넣으면 합성을, 안 넣으면 AI가 어울리는 모델을 추천해줍니다.")
         
         st.markdown("---")
-        st.header("2. Select Vibe")
+        st.header("2. Concept")
         vibe_option = st.selectbox(
-            "원하는 촬영 분위기",
+            "촬영 분위기",
             ["Luxury Studio (명품/미니멀)", "Cinematic Film (영화 같은 연출)", 
              "Urban Street (힙합/스트릿)", "Nature Sunlight (자연광/감성)"]
         )
         
         st.markdown("---")
-        # 실행 버튼을 사이드바 하단에 배치 (항상 보임)
         analyze_btn = st.button("✨ 기획안 및 프롬프트 생성")
 
-    # --- [B] 메인 화면: 결과 및 프리뷰 ---
+    # 메인 화면
     st.markdown("### 🎞️ Studio Preview")
 
-    # 이미지가 업로드되면 미리보기 표시
     col1, col2 = st.columns(2)
     p_img = None
     m_img = None
@@ -134,45 +150,39 @@ def main():
             p_img = Image.open(product_file)
             st.image(p_img, caption="Main Product", use_column_width=True)
         else:
-            st.info("👈 왼쪽에서 상품을 업로드해주세요.")
+            st.info("👈 왼쪽에서 '상품' 이미지를 먼저 올려주세요.")
 
     with col2:
         if model_file:
             m_img = Image.open(model_file)
-            st.image(m_img, caption="Reference Model", use_column_width=True)
+            st.image(m_img, caption="Model (Reference)", use_column_width=True)
         else:
-            st.info("👈 왼쪽에서 모델을 업로드해주세요.")
+            st.markdown("""
+            <div style='padding: 20px; border: 1px dashed #555; border-radius: 10px; text-align: center; color: #888;'>
+                모델 사진 없음<br>(AI가 자동으로 모델을 추천합니다)
+            </div>
+            """, unsafe_allow_html=True)
 
-    # --- [C] 실행 로직 & 결과 출력 ---
+    # 실행 로직
     if analyze_btn:
-        if not product_file or not model_file:
-            st.warning("⚠️ 상품과 모델 이미지를 모두 업로드해야 분석이 가능합니다.")
+        if not product_file:
+            st.warning("⚠️ '상품 이미지'는 반드시 필요합니다!")
         else:
             if configure_genai():
-                # 분석 실행
-                result_text = analyze_dual_images(p_img, m_img, vibe_option)
+                # 모델 이미지가 없으면 None으로 처리됨
+                result_text = analyze_campaign(p_img, m_img, vibe_option)
                 st.session_state['final_result'] = result_text
 
-    # 결과가 있으면 출력 (복사 기능 포함)
+    # 결과 출력
     if 'final_result' in st.session_state:
         st.markdown("---")
         full_text = st.session_state['final_result']
         
-        # 텍스트 파싱: 프롬프트와 리포트 분리 시도 (간단한 파싱 로직)
-        # 만약 PART 2가 명확하지 않다면 전체 출력
-        
         st.header("📋 Creative Director's Report")
-        
-        # 1. 리포트 출력 (Markdown)
         st.markdown(f'<div class="report-box">{full_text}</div>', unsafe_allow_html=True)
         
-        # 2. 복사 전용 프롬프트 박스 (Code Block 활용)
         st.subheader("📋 Copy Prompt (One-Click)")
-        st.caption("우측 상단의 복사 버튼을 누르세요.")
-        
-        # 프롬프트만 추출하는 간단한 로직 (영어 부분 예시)
-        # 실제로는 AI가 준 전체 텍스트에서 사용자가 복사할 부분을 찾기 쉽게 
-        # 전체 텍스트를 코드 블록에 한번 더 넣어주는 것이 가장 안전합니다.
+        st.caption("아래 코드를 복사하여 미드저니/스테이블 디퓨전에 붙여넣으세요.")
         st.code(full_text, language="text")
 
 if __name__ == "__main__":
